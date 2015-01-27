@@ -18,7 +18,7 @@ case object Daemon extends GlobalSetting
 case class MaxConn(number: Int) extends GlobalSetting
 case class PidFile(pidfile: String) extends GlobalSetting
 
-case class Acl(name: String, criterion: String, flags: Seq[Flag], operator: Option[Operator], value: String) extends FrontendSetting with ListenSetting with BackendSetting
+case class Acl(name: String, criterion: String, flags: Seq[Flag], operator: Option[Operator], values: Seq[String]) extends FrontendSetting with ListenSetting with BackendSetting
 sealed trait Mode extends DefaultsSetting with FrontendSetting with ListenSetting with BackendSetting
 case object TcpMode extends Mode
 case object HttpMode extends Mode
@@ -42,8 +42,25 @@ object Operators {
   case object Gt extends Operator
 }
 
-sealed trait Bind extends Setting with FrontendSetting with ListenSetting
-// TODO: Bind alternatives
+sealed trait Bind extends FrontendSetting with ListenSetting
+case class BindEndpoint(endpoints: Seq[Endpoint], params: Seq[BindOption]) extends Bind
+case class BindPath(paths: Seq[String], params: Seq[BindOption]) extends Bind
+case class Endpoint(prefix: Option[Prefix], address: Option[String], portRange: Option[PortRange])
+case class PortRange(from: Int, to: Int)
+object Port {
+  def apply(port: Int): PortRange = PortRange(port, port)
+}
+sealed trait Prefix
+object Prefixes {
+  case object IPv4 extends Prefix
+  case object IPv6 extends Prefix
+  case object Unix extends Prefix
+  case object Abns extends Prefix
+  case object Fd extends Prefix
+}
+
+sealed trait BindOption
+// TODO: Bind options, see http://cbonte.github.io/haproxy-dconv/configuration-1.5.html#5
 
 sealed trait HAOption extends ProxySetting
 case class ForceClose(enabled: Boolean) extends HAOption with DefaultsSetting with FrontendSetting with ListenSetting with BackendSetting

@@ -1,12 +1,13 @@
 package com.gregbeech.haproxy
 
 import com.gregbeech.haproxy.Operators._
+import com.gregbeech.haproxy.Prefixes._
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.Success
 
 class ConfigParserSpec extends FlatSpec with Matchers {
-  
+
   ////////////////////////// intrinsics //////////////////////////
 
   "ConfigParser" should "parse numbers as integers" in {
@@ -52,14 +53,26 @@ class ConfigParserSpec extends FlatSpec with Matchers {
   }
 
   it should "parse valid acls" in {
-    new ConfigParser("""acl invalid_src  src          0.0.0.0/7 224.0.0.0/3""").acl.run() should be
-      Success(Acl("invalid_src", "src", Seq(), None, "0.0.0.0/7 224.0.0.0/3"))
-    new ConfigParser("""acl local_dst    hdr(host) -i localhost""").acl.run() should be
-      Success(Acl("local_dst", "hdr(host)", Seq(Flag('i')), None, "localhost"))
-    new ConfigParser("""acl negative-length hdr_val(content-length) lt 0""").acl.run() should be
-      Success(Acl("negative-length", "hdr_val(content-length)", Seq(), Some(Lt), "0"))
-    new ConfigParser("""acl valid-ua hdr(user-agent) -f exact-ua.lst -i -f generic-ua.lst test""").acl.run() should be
-      Success(Acl("valid-ua", "hdr(user-agent)", Seq(Flag('f', "exact-ua.lst"), Flag('i'), Flag('f', "generic-ua.lst")), None, "test"))
+    new ConfigParser("""acl invalid_src  src          0.0.0.0/7 224.0.0.0/3""").acl.run() should be (Success(Acl("invalid_src", "src", Seq(), None, Seq("0.0.0.0/7", "224.0.0.0/3"))))
+    new ConfigParser("""acl local_dst    hdr(host) -i localhost""").acl.run() should be (Success(Acl("local_dst", "hdr(host)", Seq(Flag('i')), None, Seq("localhost"))))
+    new ConfigParser("""acl negative-length hdr_val(content-length) lt 0""").acl.run() should be (Success(Acl("negative-length", "hdr_val(content-length)", Seq(), Some(Lt), Seq("0"))))
+    new ConfigParser("""acl valid-ua hdr(user-agent) -f exact-ua.lst -i -f generic-ua.lst test""").acl.run() should be (Success(Acl("valid-ua", "hdr(user-agent)", Seq(Flag('f', "exact-ua.lst"), Flag('i'), Flag('f', "generic-ua.lst")), None, Seq("test"))))
+  }
+
+  it should "parse the bind setting for addresses and ports" in {
+    // TODO: These don't check the bind options yet
+    new ConfigParser("""bind :80""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(None, None, Some(Port(80)))), Seq())))
+    new ConfigParser("""bind :80,:443""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(None, None, Some(Port(80))), Endpoint(None, None, Some(Port(443)))), Seq())))
+    new ConfigParser("""bind 10.0.0.1:10080,10.0.0.1:10443""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(None, Some("10.0.0.1"), Some(Port(10080))), Endpoint(None, Some("10.0.0.1"), Some(Port(10443)))), Seq())))
+    new ConfigParser("""bind ipv6@:80""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(IPv6), None, Some(Port(80)))), Seq())))
+    new ConfigParser("""bind ipv4@public_ssl:443 ssl crt /etc/haproxy/site.pem""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(IPv4), Some("public_ssl"), Some(Port(443)))), Seq())))
+    new ConfigParser("""bind unix@ssl-frontend.sock user root mode 600 accept-proxy""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(Unix), Some("ssl-frontend.sock"), None)), Seq())))
+    new ConfigParser("""bind fd@${FD_APP1}""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(Fd), Some("${FD_APP1}"), None)), Seq())))
+  }
+
+  it should "parse the bind setting for paths" in {
+    // TODO: These don't check the bind options yet
+    new ConfigParser("""bind /var/run/ssl-frontend.sock user root mode 600 accept-proxy""").bind.run() should be (Success(BindPath(Seq("/var/run/ssl-frontend.sock"), Seq())))
   }
 
   it should "parse the mode setting" in {
@@ -69,18 +82,18 @@ class ConfigParserSpec extends FlatSpec with Matchers {
   }
 
   it should "parse the forceclose option" in {
-    new ConfigParser("""option forceclose""").optionForceClose.run() should be (Success(ForceClose(true)))
-    new ConfigParser("""no option forceclose""").optionForceClose.run() should be (Success(ForceClose(false)))
+    new ConfigParser("""option forceclose""").forceClose.run() should be (Success(ForceClose(true)))
+    new ConfigParser("""no option forceclose""").forceClose.run() should be (Success(ForceClose(false)))
   }
 
   it should "parse the httpclose option" in {
-    new ConfigParser("""option httpclose""").optionHttpClose.run() should be (Success(HttpClose(true)))
-    new ConfigParser("""no option httpclose""").optionHttpClose.run() should be (Success(HttpClose(false)))
+    new ConfigParser("""option httpclose""").httpClose.run() should be (Success(HttpClose(true)))
+    new ConfigParser("""no option httpclose""").httpClose.run() should be (Success(HttpClose(false)))
   }
 
   it should "parse the http-pretend-keepalive option" in {
-    new ConfigParser("""option http-pretend-keepalive""").optionHttpPretendKeepAlive.run() should be (Success(HttpPretendKeepAlive(true)))
-    new ConfigParser("""no option http-pretend-keepalive""").optionHttpPretendKeepAlive.run() should be (Success(HttpPretendKeepAlive(false)))
+    new ConfigParser("""option http-pretend-keepalive""").httpPretendKeepAlive.run() should be (Success(HttpPretendKeepAlive(true)))
+    new ConfigParser("""no option http-pretend-keepalive""").httpPretendKeepAlive.run() should be (Success(HttpPretendKeepAlive(false)))
   }
   
 }
