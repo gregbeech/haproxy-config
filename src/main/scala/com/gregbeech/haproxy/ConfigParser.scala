@@ -51,16 +51,17 @@ class ConfigParser(val input: ParserInput) extends Parser {
   private def healthMode = rule { "mode health" ~ push(HealthMode) }
   def mode = rule { tcpMode | httpMode | healthMode }
 
-  // TODO: `address` won't match strings with : in it (e.g. IPv6 addresses), see http://stackoverflow.com/questions/28171606/string-ending-with-character-in-parboiled2-when-the-string-can-contain-that-cha
   private def ipv4 = rule { "ipv4@" ~ push(IPv4) }
   private def ipv6 = rule { "ipv6@" ~ push(IPv6) }
   private def unix = rule { "unix@" ~ push(Unix) }
   private def abns = rule { "abns@" ~ push(Abns) }
   private def fd = rule { "fd@" ~ push(Fd) }
   private def prefix = rule { ipv4 | ipv6 | unix | abns | fd }
-  private def address = rule { capture(oneOrMore(noneOf(", :"))) }
+  private def addressPart = rule { zeroOrMore(noneOf(":, ")) }
+  private def addressPartSeparator = rule { ':' ~ &(addressPart ~ ':') }
+  private def address = rule { capture(oneOrMore(addressPart).separatedBy(addressPartSeparator)) }
   private def portRange = rule { number ~ optional('-' ~ number) ~> ((f, t) => PortRange(f, t.getOrElse(f))) }
-  private def endpoint = rule { optional(prefix) ~ optional(address) ~ optional(':' ~ portRange) ~> ((p, a, r) => Endpoint(p, a, r)) }
+  private def endpoint = rule { optional(prefix) ~ optional(address) ~ optional(':' ~ portRange) ~> (Endpoint(_, _, _)) }
   private def bindEndpoint = rule { oneOrMore(endpoint).separatedBy(',') ~> (eps => BindEndpoint(eps, Seq())) } // TODO: Params
   private def path = rule { capture("/" ~ zeroOrMore(noneOf(", "))) }
   private def bindPath = rule { oneOrMore(path).separatedBy(',') ~> (ps => BindPath(ps, Seq())) } // TODO: Params

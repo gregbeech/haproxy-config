@@ -65,6 +65,7 @@ class ConfigParserSpec extends FlatSpec with Matchers {
     new ConfigParser("""bind :80,:443""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(None, None, Some(Port(80))), Endpoint(None, None, Some(Port(443)))), Seq())))
     new ConfigParser("""bind 10.0.0.1:10080,10.0.0.1:10443""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(None, Some("10.0.0.1"), Some(Port(10080))), Endpoint(None, Some("10.0.0.1"), Some(Port(10443)))), Seq())))
     new ConfigParser("""bind ipv6@:80""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(IPv6), None, Some(Port(80)))), Seq())))
+    new ConfigParser("""bind ipv6@1:::80""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(IPv6), Some("1::"), Some(Port(80)))), Seq())))
     new ConfigParser("""bind ipv4@public_ssl:443 ssl crt /etc/haproxy/site.pem""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(IPv4), Some("public_ssl"), Some(Port(443)))), Seq())))
     new ConfigParser("""bind unix@ssl-frontend.sock user root mode 600 accept-proxy""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(Unix), Some("ssl-frontend.sock"), None)), Seq())))
     new ConfigParser("""bind fd@${FD_APP1}""").bind.run() should be (Success(BindEndpoint(Seq(Endpoint(Some(Fd), Some("${FD_APP1}"), None)), Seq())))
