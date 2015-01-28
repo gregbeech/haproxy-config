@@ -8,27 +8,34 @@ import scala.collection.immutable.Seq
 
 class ConfigParser(val input: ParserInput) extends Parser {
   val CharsToEscape = " #\\"
-  
-  def inputLine = rule { padding ~ globalSetting ~ EOI }
-  
+
+  ////////////////////////// intrinsics //////////////////////////
+
+  // TODO: At the moment whitespace is being handled specifically; can we fold ~ sp into keyword matches?
   def sp = rule { oneOrMore(' ') }
-  def padding = rule { zeroOrMore(anyOf(" \t")) }
+  def ws = rule { zeroOrMore(anyOf(" \t")) }
+  def eol = rule { ws ~ optional('\r') ~ '\n' }
+
   def number = rule { capture(oneOrMore(CharPredicate.Digit)) ~> (_.toInt) }
-  
-  def char = rule { noneOf(CharsToEscape) ~ push(lastChar) }
+
+  // TODO: These are a little iffy
+  def char = rule { noneOf(CharsToEscape + "\r\n\t") ~ push(lastChar) }
   def escapedChar = rule { '\\' ~ anyOf(CharsToEscape) ~ push(lastChar) }
   def string = rule { oneOrMore(char | escapedChar) ~> (_.mkString) }
 
   def name = rule { capture(oneOrMore(CharPredicate.AlphaNum ++ CharPredicate("-_.:"))) }
   
-  def comment = rule { '#' ~ padding ~ capture(zeroOrMore(CharPredicate.Printable)) ~> Comment } // TODO: CharPredicate.All never terminates?
-  
-  def section = rule { (global | defaults) ~ padding ~ optional(comment)  }
-  def global = rule { "global" ~ push(Global) }
-  def defaults = rule { "defaults" ~ sp ~ name ~> Defaults }
+  def comment = rule { '#' ~ ws ~ capture(zeroOrMore(CharPredicate.Printable)) ~> Comment }
 
-  def globalSetting = rule { (daemon | maxconn) ~ padding ~ optional(comment) ~> ((s, c) => (s, c)) }
-  
+  ////////////////////////// sections //////////////////////////
+
+  private def globalSetting = rule { (daemon | maxconn | pidfile) /* ~ ws ~ optional(comment) ~> ((s, c) => (s, c)) */ }
+  def global = rule { "global" ~ /* optional(comment) ~ */ eol ~ zeroOrMore(ws ~ globalSetting).separatedBy(eol) ~> (Global(_: _*)) }
+  def defaults = rule { "defaults" ~ sp ~ name ~> Defaults }
+  def section = rule { (global | defaults) }
+
+  ////////////////////////// global settings //////////////////////////
+
   def daemon = rule { "daemon" ~ push(Daemon) }
   def maxconn = rule { "maxconn" ~ sp ~ number ~> MaxConn }
   def pidfile = rule { "pidfile" ~ sp ~ string ~> PidFile }
@@ -51,6 +58,8 @@ class ConfigParser(val input: ParserInput) extends Parser {
   private def healthMode = rule { "mode health" ~ push(HealthMode) }
   def mode = rule { tcpMode | httpMode | healthMode }
 
+  ////////////////////////// proxy settings //////////////////////////
+
   private def ipv4 = rule { "ipv4@" ~ push(IPv4) }
   private def ipv6 = rule { "ipv6@" ~ push(IPv6) }
   private def unix = rule { "unix@" ~ push(Unix) }
@@ -66,6 +75,14 @@ class ConfigParser(val input: ParserInput) extends Parser {
   private def path = rule { capture("/" ~ zeroOrMore(noneOf(", "))) }
   private def bindPath = rule { oneOrMore(path).separatedBy(',') ~> (ps => BindPath(ps, Seq())) } // TODO: Params
   def bind = rule { "bind" ~ sp ~ (bindPath | bindEndpoint) }
+
+  def defaultBackend = rule { "default_backend" ~ sp ~ name ~> DefaultBackend }
+
+  private def conditionString = rule { capture(oneOrMore(CharPredicate.Printable)) } // TODO: This is pretty shoddy
+  private def ifCondition = rule { "if" ~ sp ~ conditionString ~> If }
+  private def unlessCondition = rule { "unless" ~ sp ~ conditionString ~> Unless }
+  private def condition = rule { ifCondition | unlessCondition }
+  def useBackend = rule { "use_backend" ~ sp ~ name ~ sp ~ condition ~> UseBackend }
   
   private def option = rule { capture(optional("no" ~ sp)) ~ "option" ~ sp ~> (_.isEmpty) }
   def forceClose =  rule { option ~ "forceclose" ~> ForceClose }

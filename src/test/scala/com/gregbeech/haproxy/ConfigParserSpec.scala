@@ -30,8 +30,13 @@ class ConfigParserSpec extends FlatSpec with Matchers {
 
   ////////////////////////// globals //////////////////////////
 
-  it should "parse the global section declaration" in {
-    new ConfigParser("""global""").global.run() should be (Success(Global))
+  it should "parse a basic global section" in {
+    new ConfigParser(
+      """|global
+         |  maxconn 256
+         |  pidfile haproxy.pid
+         |  daemon
+         |""".stripMargin).global.run() should be (Success(Global(MaxConn(256), PidFile("haproxy.pid"), Daemon)))
   }
   
   it should "parse the daemon setting" in {
@@ -76,10 +81,19 @@ class ConfigParserSpec extends FlatSpec with Matchers {
     new ConfigParser("""bind /var/run/ssl-frontend.sock user root mode 600 accept-proxy""").bind.run() should be (Success(BindPath(Seq("/var/run/ssl-frontend.sock"), Seq())))
   }
 
+  it should "parse the default_backend setting" in {
+    new ConfigParser("""default_backend dynamic""").defaultBackend.run() should be (Success(DefaultBackend("dynamic")))
+  }
+
   it should "parse the mode setting" in {
     new ConfigParser("""mode tcp""").mode.run() should be (Success(TcpMode))
     new ConfigParser("""mode http""").mode.run() should be (Success(HttpMode))
     new ConfigParser("""mode health""").mode.run() should be (Success(HealthMode))
+  }
+
+  it should "parse the use_backend setting" in {
+    new ConfigParser("""use_backend static if host_static or host_www url_static""").useBackend.run() should be (Success(UseBackend("static", If("host_static or host_www url_static"))))
+    new ConfigParser("""use_backend www    unless host_static""").useBackend.run() should be (Success(UseBackend("www", Unless("host_static"))))
   }
 
   it should "parse the forceclose option" in {
